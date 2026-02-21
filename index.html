@@ -733,7 +733,7 @@
                 ]
             },
             'balanced': {
-                title: "Збалансований режим (Інженерний стандарт)",
+                title: "Збалансований режим (Інженерний standard)",
                 desc: "Найкращий вибір для циклічного використання (10-90% SoC). Точна синхронізація інвертора (3.0V/cell) та BMS (2.8V/cell) блокує аварійні ситуації.",
                 inverter: {
                     '12': { bulk: 14.20, float: 13.40, cutoff: 12.00, restart: 12.80 },
@@ -1098,8 +1098,12 @@
             });
         }
 
-        // Запуск функції
-        document.addEventListener('DOMContentLoaded', initChart);
+        // Запуск функції та ініціалізація інтерфейсу
+        document.addEventListener('DOMContentLoaded', () => {
+            updateVoltage('48');
+            updateScenario('balanced');
+            initChart();
+        });
         // ==========================================
     </script>
 </body>
