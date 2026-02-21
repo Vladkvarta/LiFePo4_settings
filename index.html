@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Інтерактивний Конфігуратор LiFePO4</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Підключення Chart.js для графіка абсорбції -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="min-h-screen flex flex-col">
+        
+        <header class="bg-white shadow-sm border-b border-slate-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <div class="flex items-center gap-3">
+                    <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Гід з налаштування LiFePO4</h1>
+                </div>
+                <p class="mt-2 text-lg text-slate-600 max-w-3xl">
+                    Професійний інструмент для конфігурації інверторів та BMS, заснований на глибокому технічному аудиті. Синхронізує захисти та враховує хімічні особливості комірок.
+                </p>
+            </div>
+        </header>
+
+        <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
+
+            <!-- CONFIGURATION SELECTOR -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Voltage Selection -->
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider">Напруга системи</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <button onclick="updateVoltage('12')" id="btn-v-12" class="py-2 px-3 text-sm font-medium border border-slate-300 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-all">
+                                12.8В (4S)
+                            </button>
+                            <button onclick="updateVoltage('24')" id="btn-v-24" class="py-2 px-3 text-sm font-medium border border-slate-300 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-all">
+                                25.6В (8S)
+                            </button>
+                            <button onclick="updateVoltage('48')" id="btn-v-48" class="py-2 px-3 text-sm font-medium border border-slate-300 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-all">
+                                51.2В (16S)
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-2">*Базові розрахунки спираються на 3.2В/комірку, а не на свинцеві стандарти.</p>
+                    </div>
+
+                    <!-- Scenario Selection -->
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider">Режим експлуатації</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <button onclick="updateScenario('capacity')" id="btn-s-capacity" class="py-2 px-3 text-sm font-medium border border-slate-300 rounded-lg bg-white text-slate-700 hover:bg-rose-50 transition-all">
+                                Ємність
+                            </button>
+                            <button onclick="updateScenario('balanced')" id="btn-s-balanced" class="py-2 px-3 text-sm font-medium border border-indigo-500 rounded-lg bg-indigo-50 text-indigo-700 transition-all">
+                                Баланс
+                            </button>
+                            <button onclick="updateScenario('life')" id="btn-s-life" class="py-2 px-3 text-sm font-medium border border-slate-300 rounded-lg bg-white text-slate-700 hover:bg-emerald-50 transition-all">
+                                Ресурс
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <h3 class="font-bold text-slate-900" id="scenario-title">--</h3>
+                    <p class="text-slate-600 text-sm mt-1" id="scenario-desc">--</p>
+                </div>
+            </section>
+
+            <!-- CALCULATOR ROW (WITH EFFICIENCY MATH) -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div class="max-w-4xl mx-auto">
+                    <h3 class="text-lg font-bold text-slate-800 mb-5 flex items-center justify-center gap-2">⚡ Аналізатор Струмів та Навантаження</h3>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Ємність батареї (Аг):</label>
+                            <input type="number" id="input-capacity" min="0" placeholder="Наприклад: 100" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-lg font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" oninput="calculateCurrent()">
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-end mb-2">
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">Потужність навантаження (кВт):</label>
+                                <span class="text-[9px] font-mono bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded" title="Враховано комутаційні втрати">ККД: 92%</span>
+                            </div>
+                            <input type="number" id="input-load" min="0" step="0.5" placeholder="Наприклад: 5.0" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-lg font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all" oninput="calculateCurrent()">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                            <div class="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-widest">Параметри Заряджання</div>
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-xs text-slate-600">Оптимально (0.2C - 0.3C):</span>
+                                <span class="font-bold text-emerald-600"><span id="res-min">0</span>А - <span id="res-max">0</span>А</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-slate-600">Ліміт надійності (0.5C):</span>
+                                <span class="font-bold text-amber-600"><span id="res-limit">0</span>А</span>
+                            </div>
+                        </div>
+                        <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 relative overflow-hidden">
+                            <div class="absolute right-0 top-0 bottom-0 w-1 bg-indigo-500" id="c-rate-indicator"></div>
+                            <div class="text-[10px] uppercase font-bold text-slate-400 mb-2 tracking-widest">Оцінка Навантаження (DC)</div>
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-xs text-slate-600">Струм від АКБ (макс):</span>
+                                <span class="font-bold text-slate-800"><span id="res-load-amps">0</span>А</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-slate-600">Коефіцієнт (C-Rate):</span>
+                                <span class="font-bold text-slate-800" id="res-c-rate">0.00 C</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- COMPACT HEALTH WARNING BOX -->
+                    <div id="health-warning-box" class="hidden mt-4 rounded-xl p-4 border transition-all duration-300">
+                        <div class="flex items-start gap-3">
+                            <span class="text-xl mt-0.5" id="health-warning-icon">⚠️</span>
+                            <div>
+                                <h4 id="health-warning-title" class="text-sm font-bold uppercase tracking-wider mb-0.5">Увага!</h4>
+                                <p class="text-xs leading-relaxed" id="health-warning-text"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                <!-- MAIN SETTINGS COLUMN -->
+                <div class="space-y-6">
+                    
+                    <!-- INVERTER BLOCK -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
+                        <div class="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                            <div>
+                                <h2 class="text-lg font-bold text-slate-800">🔌 Параметри Інвертора</h2>
+                                <p class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">Захищено від конфліктів з BMS</p>
+                            </div>
+                        </div>
+                        
+                        <!-- GRID LAYOUT FOR PARAMETERS -->
+                        <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-6 flex-grow">
+                            <!-- Bulk -->
+                            <div class="relative pl-4 border-l-4 border-indigo-500">
+                                <span class="text-[10px] font-bold text-indigo-600 uppercase">Bulk / Absorption</span>
+                                <div class="flex items-baseline gap-2 flex-wrap">
+                                    <span class="text-4xl font-bold text-slate-900" id="val-bulk">--</span>
+                                    <span class="text-lg text-slate-500" id="val-bulk-unit">В</span>
+                                </div>
+                                <span class="text-xs text-slate-400 font-medium italic" id="cell-bulk-note">--</span>
+                            </div>
+                            <!-- Float -->
+                            <div class="relative pl-4 border-l-4 border-emerald-500">
+                                <span class="text-[10px] font-bold text-emerald-600 uppercase">Float (Підтримка)</span>
+                                <div class="flex items-baseline gap-2 flex-wrap">
+                                    <span class="text-4xl font-bold text-slate-900" id="val-float">--</span>
+                                    <span class="text-lg text-slate-500" id="val-float-unit">В</span>
+                                </div>
+                                <span class="text-xs text-slate-400 font-medium italic" id="cell-float-note">--</span>
+                            </div>
+                            <!-- Cut-off -->
+                            <div class="relative pl-4 border-l-4 border-rose-500">
+                                <span class="text-[10px] font-bold text-rose-600 uppercase">Inverter Cut-off</span>
+                                <div class="flex items-baseline gap-2 flex-wrap">
+                                    <span class="text-4xl font-bold text-slate-900" id="val-cutoff">--</span>
+                                    <span class="text-lg text-slate-500">В</span>
+                                </div>
+                                <span class="text-xs text-slate-400 font-medium italic" id="cell-cutoff-note">--</span>
+                            </div>
+                            <!-- Restart -->
+                            <div class="relative pl-4 border-l-4 border-sky-500">
+                                <span class="text-[10px] font-bold text-sky-600 uppercase">Restart / Recovery</span>
+                                <div class="flex items-baseline gap-2 flex-wrap">
+                                    <span class="text-4xl font-bold text-slate-900" id="val-restart">--</span>
+                                    <span class="text-lg text-slate-500">В</span>
+                                </div>
+                                <span class="text-xs text-slate-400 font-medium italic" id="cell-restart-note">--</span>
+                            </div>
+                        </div>
+                        
+                        <!-- DYNAMIC WARNING ALERT -->
+                        <div id="sag-warning-box" class="hidden bg-sky-50 border-t border-sky-100 p-4">
+                            <div class="flex gap-3">
+                                <span class="text-xl">💡</span>
+                                <div>
+                                    <h4 class="text-sm font-bold text-sky-900">Компенсація просадки напруги (Voltage Sag)</h4>
+                                    <p class="text-xs text-sky-800 mt-1" id="sag-warning-text">Через високу потужність навантаження...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <!-- SECONDARY COLUMN: BMS -->
+                <div class="space-y-6 flex flex-col">
+                    
+                    <!-- BMS TABLE -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                            <h2 class="text-lg font-bold text-slate-800">🛡️ Налаштування BMS</h2>
+                            <span class="text-[10px] bg-indigo-100 px-2 py-1 rounded text-indigo-700 font-mono tracking-tighter uppercase">Per-Cell Parameters</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left table-fixed">
+                                <thead class="text-xs text-slate-700 uppercase bg-slate-50 border-b">
+                                    <tr>
+                                        <th class="w-[50%] sm:w-[40%] px-4 sm:px-6 py-3 font-bold">Параметр</th>
+                                        <th class="w-[50%] sm:w-[20%] px-4 sm:px-6 py-3 font-bold text-right text-indigo-600">Напруга</th>
+                                        <th class="hidden sm:table-cell sm:w-[40%] px-4 sm:px-6 py-3 font-medium">Призначення</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100" id="bms-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- MAINTENANCE & ADVISORY SECTION -->
+            <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-2">
+                
+                <div class="bg-amber-50 rounded-2xl border border-amber-200 overflow-hidden shadow-sm">
+                    <div class="p-4 border-b border-amber-100 bg-amber-100/50">
+                        <h2 class="text-sm font-bold text-amber-900 flex items-center gap-2">⏱️ Таймінги заряду</h2>
+                    </div>
+                    <div class="p-4 space-y-3">
+                        <div>
+                            <div class="text-[10px] font-bold text-amber-600 uppercase">Absorption Time</div>
+                            <div class="font-bold text-slate-800 mt-0.5">30 - 60 хв</div>
+                            <p class="text-[10px] text-slate-600 leading-tight mt-1">Необхідно для успішного завершення процесу балансування комірок.</p>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-bold text-amber-600 uppercase">Equalization Time</div>
+                            <div class="font-bold text-slate-800 mt-0.5">0 хв (Вимкнено)</div>
+                            <p class="text-[10px] text-slate-600 leading-tight mt-1">Десульфатація (Equalization) категорично заборонена для LiFePO4.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 border-b border-slate-100 bg-slate-50">
+                        <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2">🌡️ Температурні ліміти BMS</h2>
+                    </div>
+                    <div class="p-4 space-y-2 text-xs text-slate-600">
+                        <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+                            <span class="font-medium text-blue-600">Charge UTP (Мін. заряд)</span>
+                            <span class="font-bold text-slate-800">+2 °C</span>
+                        </div>
+                        <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+                            <span class="font-medium text-blue-400">Charge UTPR (Відновл.)</span>
+                            <span class="font-bold text-slate-800">+5 °C</span>
+                        </div>
+                        <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+                            <span class="font-medium text-rose-600">Discharge OTP (Макс. розряд)</span>
+                            <span class="font-bold text-slate-800">+60 °C</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium text-rose-400">Discharge OTPR (Відновл.)</span>
+                            <span class="font-bold text-slate-800">+55 °C</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 lg:col-span-2 flex flex-col justify-center">
+                    <h2 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">🔬 Оптимізована архітектура</h2>
+                    <ul class="text-xs text-slate-600 space-y-2.5">
+                        <li class="flex items-start gap-2">
+                            <span class="text-emerald-500 mt-0.5">✓</span>
+                            <span><strong>Математична база:</strong> Усі напруги інвертора розраховані кратно 3.2В (номінал LiFePO4), виключаючи похибки свинцевих standard.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-emerald-500 mt-0.5">✓</span>
+                            <span><strong>Синхронізація:</strong> Пороги Inverter Cutoff суворо узгоджені з BMS UVP (+ запас дельти) для запобігання аварійним відключенням контакторів під навантаженням.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-emerald-500 mt-0.5">✓</span>
+                            <span><strong>Розрахунок струму:</strong> Аналізатор навантаження враховує реальний коефіцієнт корисної дії (ККД) інвертора (~92%), додаючи приховані 8-10% струму до навантаження батареї.</span>
+                        </li>
+                    </ul>
+                </div>
+
+            </section>
+
+            <!-- ABSORPTION TIME CHART SECTION -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 max-w-5xl mx-auto">
+                <div class="flex flex-col md:flex-row gap-6 items-center">
+                    <div class="w-full md:w-1/3 space-y-3">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">⏳ Час насичення (Absorption)</h3>
+                        <p class="text-sm text-slate-600 leading-relaxed">
+                            Графік показує процес заряду комірки (CC-CV) з розрахунку на 100 Аг ємності при струмі заряду 30А.
+                        </p>
+                        <div class="bg-indigo-50 border-l-4 border-indigo-500 p-3 rounded-r-lg text-xs text-indigo-900 mt-4 space-y-2">
+                            <strong>Фізика процесу:</strong> 
+                            <p>Напруга <strong>3.65V</strong> має високу різницю потенціалів: режим постійного струму (СС) триває майже весь час, а насичення (CV) займає лічені хвилини.</p>
+                            <p>Напруга <strong>3.40V</strong> досягається швидко. Після короткого режиму СС, струм дуже повільно падає годинами, "заштовхуючи" залишки енергії.</p>
+                        </div>
+                    </div>
+                    <div class="w-full md:w-2/3 relative h-80">
+                        <canvas id="absorptionChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- KNOWLEDGE BASE SECTION (ADVANCED) -->
+            <section class="mt-8 pt-6 border-t border-slate-200">
+                <div class="flex flex-col mb-6">
+                    <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">📚 Енциклопедія LiFePO4 (Deep Research)</h2>
+                    <p class="text-sm text-slate-500 mt-2">Детальний розбір критичних ситуацій та неочевидних налаштувань. Відкрийте картку, щоб дізнатися суть проблеми та способи її вирішення.</p>
+                </div>
+                
+                <div class="space-y-4">
+                    <!-- CARD 1 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">1</span>
+                                <span>Запуск BMS: Помилка короткого замикання при підключенні інвертора</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">При першому увімкненні батареї BMS миттєво йде в захист, видаючи помилку короткого замикання (Short Circuit Protection), і відключає контакти.</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Системи інверторів обладнані надзвичайно потужними вхідними конденсаторами. У момент підключення (поки конденсатори порожні) вони споживають гігантський імпульсний струм у сотні ампер за долі секунди. Якщо апаратна затримка захисту (SCP Delay) в BMS становить менше 1500–2000 мікросекунд, електроніка BMS помилково ідентифікує цей струм як реальне коротке замикання магістралі.</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення / Як обійти</h4>
+                                <ul class="text-sm text-emerald-900 space-y-2 font-medium">
+                                    <li><strong>1. Програмно:</strong> Якщо ваша BMS має налаштування `Short-Circuit Protection Delay` (або SCP Delay), збільшіть його до 2000+ мкс.</li>
+                                    <li><strong>2. Апаратно (Pre-charge обхід):</strong> Якщо функція відсутня, зробіть "передзаряд". Перед увімкненням головного автомата, з'єднайте плюсову клему батареї з інвертором через потужний резистор (наприклад 50 Вт, 30-100 Ом) або звичайну лампу розжарювання (220В 100Вт) на 5-10 секунд. Конденсатори плавно зарядяться, після чого можна вмикати BMS напряму — вибивати не буде.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CARD 2 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">2</span>
+                                <span>Синхронізація відключення: Спалений інвертор через BMS</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">Якщо пороги розряду встановлені неправильно, під час високого навантаження BMS "рубає" напругу першою. Це викликає страшне іскріння, зворотну ЕРС і часто призводить до вигоряння транзисторів інвертора.</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Інвертор оперує загальною напругою (Pack Voltage), усереднюючи показники. BMS контролює кожну комірку (Cell Voltage). Закон узгодження вимагає, щоб інвертор вимикав відбір енергії самостійно <strong>до того</strong>, як найслабша комірка просяде до критичного порогу UVP (Under Voltage Protection). Відключення силових ключів BMS під навантаженням (особливо >50А) — це жорстке аварійне переривання ланцюга.</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення</h4>
+                                <p class="text-sm text-emerald-900 font-medium">Завжди встановлюйте Inverter Cut-off вище порогу BMS UVP мінімум на 0.15В - 0.20В в перерахунку на одну комірку. Наприклад, якщо BMS UVP = 2.80В, то інвертор має вимкнутися при 3.00В (для 16S це 48.0В). Інвертор має зупинитися програмно, а BMS повинна залишатися мовчазним запобіжником останньої надії.</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CARD 3 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">3</span>
+                                <span>Штучний розбаланс комірок: Start Balance Voltage</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">BMS постійно намагається балансувати комірки під час роботи, але дисбаланс тільки збільшується. Ємність акумулятора "дрейфує".</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Крива розряду LiFePO4 є абсолютно пласкою на відрізку від 20% до 80% SoC (напруга лежить у межах 3.20В - 3.35В). Різниця в 0.01В тут викликана внутрішнім опором самої комірки, якістю шин чи динамічним навантаженням, а не реальною різницею в ємності! Якщо балансир вмикається при 3.20В, він просто спалює енергію нормальних комірок, створюючи штучний дисбаланс.</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення</h4>
+                                <p class="text-sm text-emerald-900 font-medium">Встановіть параметр Start Balance Voltage суворо на 3.40В. Саме з цієї точки хімічний потенціал починає різко йти вгору (експоненційне зростання), і дельта напруг (ΔV) гарантовано і точно відображає різницю у рівні заряду комірок.</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CARD 4 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">4</span>
+                                <span>Просадка напруги (Voltage Sag) при високих струмах</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">Під час увімкнення потужних приладів (бойлер, чайник) інвертор миттєво відключається за розрядом, хоча акумулятор показував, що в ньому ще 30-40% енергії.</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Динамічне падіння напруги (Sag) відбувається через еквівалентний внутрішній опір (ESR) самих комірок, шин та транзисторів BMS. При високому струмі розряду (ближче до 1C) сумарний опір збірки викликає просадку до 4 Вольт. Наприклад, якщо напруга спокою була 52В, під струмом вона просяде до 48В, і інвертор "подумає", що акумулятор розряджений повністю, ініціювавши відключення.</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення</h4>
+                                <p class="text-sm text-emerald-900 font-medium">Уникайте роботи на струмах вище 0.5C (збільште ємність батареї паралельним підключенням). Якщо це неможливо — застосуйте "Динамічну відсічку": знижуйте поріг Inverter Cut-off на 1.0-1.5В примусово в меню інвертора в дні, коли плануєте важкі навантаження. Обов'язково збільште поріг Restart, щоб інвертор не "смикався", коли напруга підстрибне назад.</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CARD 5 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">5</span>
+                                <span>Небезпека режиму Float (Підтримуючий заряд)</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">У буферному режимі роботи (як UPS) батарея може роздутися, а її циклічний ресурс знижується в 2-3 рази через постійний зарядний струм.</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Хімія LiFePO4, на відміну від свинцю, ненавидить стан "мікропідзарядки". Постійне прикладання потенціалу Float (особливо вище 3.35В) до повністю зарядженої комірки утримує активні маси в стані електрохімічного стресу та стимулює повільний ріст літієвих дендритів, які руйнують сепаратор.</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення</h4>
+                                <p class="text-sm text-emerald-900 font-medium">Для серверів та систем резерву: вимкніть Float зовсім. Налаштуйте інвертор так, щоб він зарядив батарею (Bulk) і зупинився. Наступний цикл заряду (Re-bulk) інвертор має запускати лише тоді, коли природне падіння напруги досягне 3.30В на комірку. Якщо інвертор не дозволяє вимкнути Float, встановіть його рівно на 3.35В (напруга релаксації) — це мінімізує струми.</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CARD 6 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">6</span>
+                                <span>Зарядка взимку: Lithium Plating (Charge UTP)</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">Фатальне руйнування комірки та ризик внутрішнього короткого замикання з подальшим загорянням при спробі заряджати акумулятор на морозі.</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Літій-залізо-фосфат не можна заряджати при від'ємних температурах. Інтеркаляція (проникнення) іонів літію у графіт різко уповільнюється на холоді. Іони не встигають сховатися в решітку і осідають на поверхні анода у вигляді чистого металевого літію (процес Lithium Plating). Цей метал гострими гранями пробиває сепаратор і замикає комірку зсередини. Процес незворотній.</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення</h4>
+                                <p class="text-sm text-emerald-900 font-medium">Перевірте параметри захисту температури в BMS. Charge UTP (захист від холоду при заряді) має бути жорстко зафіксований на рівні +2°C (з відновленням при +5°C). Розряджати батарею при цьому можна (до -20°C).</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CARD 7 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">7</span>
+                                <span>Математична база 3.2В (Помилка "48-вольтових" систем)</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">Повна розсинхронізація алгоритмів оцінки заряду (SoC). Інвертор вимикається зарано або, навпаки, заганяє батарею в глибокий розряд.</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Термодинамічний потенціал спокою LiFePO4 — рівно 3.2В. Множення "свинцевих" 12В на 4 дає 48В, тоді як реальна база 16S збірки — 51.2В. Ця помилка в мінус 3.2В фатально зміщує всі пороги інвертора в зону різкого нелінійного падіння напруги, залишаючи ячейки без запасу безпеки.</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення</h4>
+                                <p class="text-sm text-emerald-900 font-medium">Усі розрахунки інвертора (Bulk, Float, Cut-off) мають розраховуватись суворо шляхом множення напруги однієї комірки (Per-cell) на кількість комірок: 4 (для 12В), 8 (для 24В) або 16 (для 48В систем).</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CARD 8 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">8</span>
+                                <span>Здуття комірок (Небезпека функції Equalization)</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">Незворотне здуття (деформація) алюмінієвого корпусу комірки, активація клапана скидання тиску, повна втрата акумулятора.</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Функція Equalization (вирівнювальний заряд) історично створена для десульфатації свинцю імпульсами напруги 14.6В і вище. Для хімії LiFePO4 тривала подача такої напруги викликає незворотний гідроліз (кипіння) електроліту та газоутворення всередині герметичного корпусу.</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення</h4>
+                                <p class="text-sm text-emerald-900 font-medium">Повністю заблокувати Equalization. Якщо в бюджетному інверторі її не можна вимкнути, прирівняйте напругу Equalization до напруги Bulk, а час (Equalization Time) встановіть на 0 хвилин.</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CARD 9 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">9</span>
+                                <span>Дрейф ємності через відсутність Absorption Time</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">BMS не балансує комірки, хоча напруга заряду досягає 100%. З часом загальна ємність збірки значно зменшується через розбіг.</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Струм пасивних балансирів дуже малий (зазвичай 50-200 мА). Якщо інвертор, досягнувши цільової напруги Bulk, миттєво відключає заряд, балансирам просто не вистачає часу для спалювання зайвої енергії на комірках, що вирвалися вперед. Балансування вимагає тривалого утримання високої напруги (фаза CV).</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення</h4>
+                                <p class="text-sm text-emerald-900 font-medium">Додайте в меню інвертора таймер "Absorption Time". Оптимальний час — 30 хвилин на кожні 100 Аг ємності батареї (наприклад, 1 година для збірки на 200 Аг). Альтернатива: адаптивна відсічка по хвостовому струму (Tail Current).</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CARD 10 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">10</span>
+                                <span>Розчинення міді (Небезпека розряду до 2.50В)</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">Деградація анода та незворотна втрата комірки через залишення розрядженого акумулятора підключеним до інвертора з фоновим споживанням.</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Часто BMS "з заводу" налаштовують на захист UVP при 2.50В. При високих струмах це нормально. Але при малих струмах простою (менше 0.1C) падіння напруги до 2.50В означає 100% хімічне виснаження. Перебування комірки в цьому стані запускає процес розчинення мідної фольги анодного струмознімача. При наступній зарядці розчинена мідь утворює короткі замикання.</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення</h4>
+                                <p class="text-sm text-emerald-900 font-medium">Підніміть абсолютний поріг Cell UVP та Power Off Voltage в BMS мінімум до 2.60В. Це зберігає цілісність струмознімача і забирає менше 1% теоретичної ємності, страхуючи вас від "забутого" розрядженого акумулятора.</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CARD 11 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">11</span>
+                                <span>Клацання контакторів (Гістерезис відновлення)</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">Інвертор та BMS входять у нескінченний цикл увімкнення/вимкнення після досягнення розряду (резонанс), зношуючи силове реле.</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Явище релаксації (Voltage Bounce). При знятті навантаження з розрядженої комірки її напруга миттєво "відскакує" вгору на 0.15В - 0.25В через зникнення омічного опору. Якщо поріг відключення (UVP = 2.80В) і відновлення (UVPR = 2.85В) знаходяться надто близько, BMS побачить "відскок", вирішить що батарея зарядилась, і знову підключить інвертор. Напруга знову впаде — і цикл повториться.</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення</h4>
+                                <p class="text-sm text-emerald-900 font-medium">Задайте математично обґрунтований гістерезис. Дельта між UVP і UVPR (а також між OVP і OVPR) має становити не менше 0.20В на комірку. Наприклад: UVP = 2.80В, UVPR = 3.00В.</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CARD 12 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">12</span>
+                                <span>Теплова деградація (Міф про щоденний заряд 1C)</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">Пришвидшене зниження ресурсу SOH, мікротріщини в структурі катода, сильний нагрів клем та перемичок.</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Хоча виробники допускають заряд струмом 1C (наприклад 100А для 100Аг акумулятора), тепловиділення всередині комірки зростає пропорційно квадрату струму (P = I^2 \cdot R). Регулярний щоденний заряд струмами вище 0.5C прискорює ріст шару SEI (Solid Electrolyte Interphase) на аноді. Цей шар поглинає корисний літій, зменшуючи ємність на 15-20% швидше від норми.</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення</h4>
+                                <p class="text-sm text-emerald-900 font-medium">Обмежте струм повсякденного заряду в налаштуваннях інвертора діапазоном 0.2C - 0.5C (від 20А до 50А для батареї 100Аг). Струм 1C використовуйте виключно як аварійний Fast Charging у періоди дуже коротких увімкнень світла.</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- CARD 13 -->
+                    <details class="group border border-slate-200 rounded-2xl bg-white shadow-sm [&_summary::-webkit-details-marker]:hidden overflow-hidden">
+                        <summary class="flex cursor-pointer items-center justify-between gap-1.5 p-5 text-slate-800 font-bold transition-colors hover:bg-slate-50">
+                            <div class="flex items-center gap-3">
+                                <span class="px-2 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200 font-bold">13</span>
+                                <span>Приховані струми (Ігнорування ККД інвертора)</span>
+                            </div>
+                            <span class="shrink-0 transition duration-300 group-open:-rotate-180">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                            </span>
+                        </summary>
+                        <div class="px-5 pb-5 pt-2 border-t border-slate-100 bg-slate-50 space-y-4">
+                            <div class="bg-rose-50 border-l-4 border-rose-500 p-3.5 rounded-r-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">🚨 Проблема (Ризик)</h4>
+                                <p class="text-sm text-rose-900 font-medium leading-snug">Перегрів силових кабелів, помилковий вибір перерізу проводки та завищені очікування відносно часу автономної роботи.</p>
+                            </div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">⚙️ Технічне пояснення</h4>
+                                <p class="text-sm text-slate-700 leading-relaxed">Перетворення постійного струму (DC) батареї на змінний струм (AC) для домашньої мережі супроводжується втратами на нагрів трансформаторів та ключів. Коефіцієнт корисної дії (ККД) сучасних інверторів становить 90-94%. Це означає, що для забезпечення навантаження в 5 кВт, інвертор "витягне" з акумулятора приблизно 5.5 кВт. Звичайний розрахунок (I = P / V) покаже 97 Ампер, тоді як реальний струм з урахуванням ККД складе 108 Ампер.</p>
+                            </div>
+                            <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-lg shadow-sm">
+                                <h4 class="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">✅ Рішення</h4>
+                                <p class="text-sm text-emerald-900 font-medium">Завжди використовуйте дільник ККД (0.90 - 0.94) при розрахунку струмів: I_{batt} = P_{inv} / (V_{pack} \cdot 0.92). Цей калькулятор вже автоматично враховує ці 10-11% втрат при оцінці C-Rate та максимального струму від АКБ.</p>
+                            </div>
+                        </div>
+                    </details>
+
+                </div>
+            </section>
+
+        </main>
+
+        <footer class="py-8 text-center text-slate-400 text-[10px] uppercase tracking-widest border-t border-slate-200 bg-white mt-12">
+            Інформація на основі глибокого технічного аудиту хімії LiFePO4
+        </footer>
+    </div>
+
+    <script>
+        // Стандартизовані описи для всіх режимів
+        const bmsStandardDesc = {
+            ovp: "Аварійне відключення заряду (захист від перезаряду комірки)",
+            ovpr: "Відновлення заряду після спрацювання захисту OVP",
+            soc100: "Калібрування BMS для відображення 100% заряду",
+            balance: "Активація балансирів (на початку крутого підйому напруги)",
+            uvp: "Аварійне відключення розряду (захист від глибокого розряду)",
+            uvpr: "Відновлення розряду після спрацювання захисту UVP",
+            soc0: "Калібрування BMS для відображення 0% заряду",
+            poweroff: "Повне знеструмлення електроніки BMS (сплячий режим)"
+        };
+
+        // Updated scenarios based on the Deep Research document
+        const scenarios = {
+            'capacity': {
+                title: "Максимальна ємність (Агресивний)",
+                desc: "Утилізує максимальний обсяг енергії (0-100% SoC). Знижено ризик деградації завдяки Bulk 3.60V та правильному Inverter Cutoff, що виключає жорсткі відключення BMS.",
+                inverter: {
+                    '12': { bulk: 14.40, float: 13.48, cutoff: 11.20, restart: 12.40 },
+                    '24': { bulk: 28.80, float: 26.96, cutoff: 22.40, restart: 24.80 },
+                    '48': { bulk: 57.60, float: 53.92, cutoff: 44.80, restart: 49.60 },
+                    'cell': { bulk: 3.60, float: 3.37, cutoff: 2.80, restart: 3.10 }
+                },
+                bms: [
+                    { name: 'Cell OVP', val: 3.650, desc: bmsStandardDesc.ovp },
+                    { name: 'Cell OVPR', val: 3.450, desc: bmsStandardDesc.ovpr },
+                    { name: 'SOC 100% Volt', val: 3.550, desc: bmsStandardDesc.soc100 },
+                    { name: 'Start Balance Volt', val: 3.400, desc: bmsStandardDesc.balance },
+                    { name: 'Cell UVP', val: 2.600, desc: bmsStandardDesc.uvp },
+                    { name: 'Cell UVPR', val: 2.800, desc: bmsStandardDesc.uvpr },
+                    { name: 'SOC 0% Volt', val: 2.850, desc: bmsStandardDesc.soc0 },
+                    { name: 'Power Off Vol', val: 2.600, desc: bmsStandardDesc.poweroff }
+                ]
+            },
+            'balanced': {
+                title: "Збалансований режим (Інженерний стандарт)",
+                desc: "Найкращий вибір для циклічного використання (10-90% SoC). Точна синхронізація інвертора (3.0V/cell) та BMS (2.8V/cell) блокує аварійні ситуації.",
+                inverter: {
+                    '12': { bulk: 14.20, float: 13.40, cutoff: 12.00, restart: 12.80 },
+                    '24': { bulk: 28.40, float: 26.80, cutoff: 24.00, restart: 25.60 },
+                    '48': { bulk: 56.80, float: 53.60, cutoff: 48.00, restart: 51.20 },
+                    'cell': { bulk: 3.55, float: 3.35, cutoff: 3.00, restart: 3.20 }
+                },
+                bms: [
+                    { name: 'Cell OVP', val: 3.600, desc: bmsStandardDesc.ovp },
+                    { name: 'Cell OVPR', val: 3.400, desc: bmsStandardDesc.ovpr },
+                    { name: 'SOC 100% Volt', val: 3.480, desc: bmsStandardDesc.soc100 },
+                    { name: 'Start Balance Volt', val: 3.400, desc: bmsStandardDesc.balance },
+                    { name: 'Cell UVP', val: 2.800, desc: bmsStandardDesc.uvp },
+                    { name: 'Cell UVPR', val: 3.000, desc: bmsStandardDesc.uvpr },
+                    { name: 'SOC 0% Volt', val: 2.850, desc: bmsStandardDesc.soc0 },
+                    { name: 'Power Off Vol', val: 2.600, desc: bmsStandardDesc.poweroff }
+                ]
+            },
+            'life': {
+                title: "Максимальний ресурс (Буферний режим)",
+                desc: "Для систем UPS та серверів (20-80% SoC). Функцію Float відключено для запобігання постійному електрохімічному стресу активних мас.",
+                inverter: {
+                    '12': { bulk: 13.80, float: "Вимк", cutoff: 12.60, restart: 13.00 },
+                    '24': { bulk: 27.60, float: "Вимк", cutoff: 25.20, restart: 26.00 },
+                    '48': { bulk: 55.20, float: "Вимк", cutoff: 50.40, restart: 52.00 },
+                    'cell': { bulk: 3.45, float: "Re-bulk 3.30", cutoff: 3.15, restart: 3.25 }
+                },
+                bms: [
+                    { name: 'Cell OVP', val: 3.550, desc: bmsStandardDesc.ovp },
+                    { name: 'Cell OVPR', val: 3.350, desc: bmsStandardDesc.ovpr },
+                    { name: 'SOC 100% Volt', val: 3.430, desc: bmsStandardDesc.soc100 },
+                    { name: 'Start Balance Volt', val: 3.400, desc: bmsStandardDesc.balance },
+                    { name: 'Cell UVP', val: 2.900, desc: bmsStandardDesc.uvp },
+                    { name: 'Cell UVPR', val: 3.100, desc: bmsStandardDesc.uvpr },
+                    { name: 'SOC 0% Volt', val: 2.900, desc: bmsStandardDesc.soc0 },
+                    { name: 'Power Off Vol', val: 2.600, desc: bmsStandardDesc.poweroff }
+                ]
+            }
+        };
+
+        let state = {
+            voltage: '48',
+            scenario: 'balanced'
+        };
+
+        function updateVoltage(v) {
+            state.voltage = v;
+            ['12', '24', '48'].forEach(val => {
+                const btn = document.getElementById(`btn-v-${val}`);
+                if (val === v) {
+                    btn.className = "py-2 px-3 text-sm font-bold border border-indigo-500 rounded-lg bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-500 transition-all";
+                } else {
+                    btn.className = "py-2 px-3 text-sm font-medium border border-slate-300 rounded-lg bg-white text-slate-700 hover:bg-slate-50 transition-all";
+                }
+            });
+            renderDashboard();
+        }
+
+        function updateScenario(s) {
+            state.scenario = s;
+            const scenarioIds = ['capacity', 'balanced', 'life'];
+            const colors = { 'capacity': 'rose', 'balanced': 'indigo', 'life': 'emerald' };
+
+            scenarioIds.forEach(id => {
+                const btn = document.getElementById(`btn-s-${id}`);
+                const color = colors[id];
+                if (id === s) {
+                    btn.className = `py-2 px-3 text-sm font-bold border border-${color}-500 rounded-lg bg-${color}-50 text-${color}-700 shadow-sm ring-1 ring-${color}-500`;
+                } else {
+                    btn.className = "py-2 px-3 text-sm font-medium border border-slate-300 rounded-lg bg-white text-slate-700 hover:bg-slate-50";
+                }
+            });
+            renderDashboard();
+        }
+
+        function renderDashboard() {
+            const data = scenarios[state.scenario];
+            const invData = data.inverter[state.voltage];
+            const cellInvData = data.inverter['cell'];
+
+            document.getElementById('scenario-title').innerText = data.title;
+            document.getElementById('scenario-desc').innerText = data.desc;
+
+            // Inverter values
+            document.getElementById('val-bulk').innerText = invData.bulk.toFixed(1);
+            
+            // Handle string "Вимк" for Float in Life mode
+            const floatEl = document.getElementById('val-float');
+            const floatUnit = document.getElementById('val-float-unit');
+            if (typeof invData.float === 'number') {
+                floatEl.innerText = invData.float.toFixed(1);
+                floatUnit.style.display = "inline";
+                floatEl.classList.remove('text-2xl');
+                floatEl.classList.add('text-4xl');
+            } else {
+                floatEl.innerText = invData.float; // "Вимк"
+                floatUnit.style.display = "none";
+                floatEl.classList.remove('text-4xl');
+                floatEl.classList.add('text-2xl');
+            }
+
+            document.getElementById('val-cutoff').innerText = invData.cutoff.toFixed(1);
+            document.getElementById('val-restart').innerText = invData.restart.toFixed(1);
+            
+            document.getElementById('cell-bulk-note').innerText = `(${cellInvData.bulk.toFixed(2)}В/комірку)`;
+            document.getElementById('cell-float-note').innerText = typeof cellInvData.float === 'number' ? `(${cellInvData.float.toFixed(2)}В/комірку)` : `(${cellInvData.float})`;
+            document.getElementById('cell-cutoff-note').innerText = `(${cellInvData.cutoff.toFixed(2)}В/комірку)`;
+            document.getElementById('cell-restart-note').innerText = `(${cellInvData.restart.toFixed(2)}В/комірку)`;
+
+            // BMS Table
+            const tbody = document.getElementById('bms-table-body');
+            tbody.innerHTML = '';
+            data.bms.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "bg-white border-b hover:bg-indigo-50/30 transition-colors h-12";
+                tr.innerHTML = `
+                    <td class="px-4 sm:px-6 py-3 font-semibold text-slate-700 truncate" title="${row.name}">${row.name}</td>
+                    <td class="px-4 sm:px-6 py-3 text-right font-mono font-bold text-indigo-600 text-base">${row.val.toFixed(3)}</td>
+                    <td class="hidden sm:table-cell px-4 sm:px-6 py-3 text-slate-500 text-xs italic leading-tight" title="${row.desc}">${row.desc}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Trigger calc to update warnings
+            calculateCurrent();
+        }
+
+        function calculateCurrent() {
+            let capInput = document.getElementById('input-capacity').value;
+            let loadInput = document.getElementById('input-load').value;
+            
+            let cap = parseFloat(capInput);
+            let loadKw = parseFloat(loadInput);
+
+            if (isNaN(cap) || cap < 0) cap = 0;
+            if (isNaN(loadKw) || loadKw < 0) loadKw = 0;
+
+            const resMin = document.getElementById('res-min');
+            const resMax = document.getElementById('res-max');
+            const resLimit = document.getElementById('res-limit');
+            const resLoadAmps = document.getElementById('res-load-amps');
+            const resCRate = document.getElementById('res-c-rate');
+            const sagWarningBox = document.getElementById('sag-warning-box');
+            const sagWarningText = document.getElementById('sag-warning-text');
+            const cRateIndicator = document.getElementById('c-rate-indicator');
+
+            // Basic Capacity Math (Max reduced to 0.5C per research)
+            if (cap > 0) {
+                resMin.innerText = (cap * 0.2).toFixed(0);
+                resMax.innerText = (cap * 0.3).toFixed(0);
+                resLimit.innerText = (cap * 0.5).toFixed(0);
+            } else {
+                resMin.innerText = "0"; resMax.innerText = "0"; resLimit.innerText = "0";
+            }
+
+            // Advanced Load Math with Inverter Efficiency (Research specified 90-94%, using 92%)
+            if (cap > 0 && loadKw > 0) {
+                const INVERTER_EFFICIENCY = 0.92;
+                let nomV = 12.8;
+                if (state.voltage === '24') nomV = 25.6;
+                if (state.voltage === '48') nomV = 51.2;
+
+                // Calculation: I = P / (V * efficiency)
+                let maxAmps = (loadKw * 1000) / (nomV * INVERTER_EFFICIENCY);
+                resLoadAmps.innerText = maxAmps.toFixed(0);
+
+                let cRate = maxAmps / cap;
+                resCRate.innerText = cRate.toFixed(2) + " C";
+
+                // Color code and indicator logic
+                if (cRate <= 0.3) {
+                    resCRate.className = "font-bold text-emerald-600";
+                    cRateIndicator.className = "absolute right-0 top-0 bottom-0 w-1.5 bg-emerald-500 transition-all";
+                }
+                else if (cRate <= 0.6) {
+                    resCRate.className = "font-bold text-amber-500";
+                    cRateIndicator.className = "absolute right-0 top-0 bottom-0 w-1.5 bg-amber-500 transition-all";
+                }
+                else {
+                    resCRate.className = "font-bold text-rose-600";
+                    cRateIndicator.className = "absolute right-0 top-0 bottom-0 w-1.5 bg-rose-500 transition-all";
+                }
+
+                // Health / Dangerous C-Rate Warning
+                const healthWarningBox = document.getElementById('health-warning-box');
+                const healthWarningText = document.getElementById('health-warning-text');
+                const warningIcon = document.getElementById('health-warning-icon');
+                const warningTitle = document.getElementById('health-warning-title');
+                
+                if (cRate > 0.8) {
+                    healthWarningText.innerHTML = `Критичне навантаження (<strong>${cRate.toFixed(2)}C</strong>)! Акумулятор працює поза зоною лінійності внутрішнього опору.<span class="block mt-3 bg-emerald-50 px-4 py-3 rounded-xl border border-emerald-200 text-emerald-900 shadow-sm text-sm"><strong>🛠 Рішення:</strong> Обмежте навантаження або збільште ємність збірки мінімум до ${(maxAmps/0.5).toFixed(0)}Аг (щоб вийти на режим 0.5C).</span>`;
+                    
+                    healthWarningBox.className = "mt-4 rounded-xl p-4 border transition-all duration-300 bg-rose-50 border-rose-200 text-rose-900";
+                    warningTitle.className = "text-sm font-bold text-rose-800 uppercase tracking-wider mb-0.5";
+                    warningTitle.innerText = "🚨 Небезпечний режим (Швидка деградація)";
+                    warningIcon.innerText = "🚨";
+                    healthWarningBox.classList.remove('hidden');
+                } else if (cRate > 0.5) {
+                    healthWarningText.innerHTML = `Підвищене навантаження (<strong>${cRate.toFixed(2)}C</strong>). Значні теплові втрати (I^2R). Зверніть увагу на переріз кабелів та надійність обтискання клем.`;
+                    
+                    healthWarningBox.className = "mt-4 rounded-xl p-4 border transition-all duration-300 bg-amber-50 border-amber-200 text-amber-900";
+                    warningTitle.className = "text-sm font-bold text-amber-800 uppercase tracking-wider mb-0.5";
+                    warningTitle.innerText = "⚠️ Підвищений знос";
+                    warningIcon.innerText = "⚠️";
+                    healthWarningBox.classList.remove('hidden');
+                } else {
+                    healthWarningBox.classList.add('hidden');
+                }
+
+                // Voltage Sag Recommendation based on Research Document
+                if (cRate > 0.5) {
+                    let cellBump = cRate > 0.8 ? 0.15 : 0.1;
+                    let numCells = state.voltage === '48' ? 16 : (state.voltage === '24' ? 8 : 4);
+                    let baseRestart = scenarios[state.scenario].inverter[state.voltage].restart;
+                    let suggestedRestart = (baseRestart + (cellBump * numCells)).toFixed(1);
+
+                    sagWarningText.innerHTML = `Коефіцієнт розряду <strong>${cRate.toFixed(2)}C</strong> викличе різку просадку напруги.<br>Для запобігання автогенерації циклів увімкнення/вимкнення, збільште параметр <strong>Restart до ${suggestedRestart} В</strong>.`;
+                    sagWarningBox.classList.remove('hidden');
+                } else {
+                    sagWarningBox.classList.add('hidden');
+                }
+            } else {
+                resLoadAmps.innerText = "0";
+                resCRate.innerText = "0.00 C";
+                resCRate.className = "font-bold text-slate-800";
+                cRateIndicator.className = "absolute right-0 top-0 bottom-0 w-1 bg-indigo-500 transition-all";
+                sagWarningBox.classList.add('hidden');
+            }
+        }
+
+        // ==========================================
+        function initChart() {
+            const canvas = document.getElementById('absorptionChart');
+            if(!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            // Якщо графік вже існує - знищуємо його перед перемальовуванням
+            if (window.absorptionChartInstance) {
+                window.absorptionChartInstance.destroy();
+            }
+
+            window.absorptionChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: '3.65V (Швидке насичення)',
+                            // CC: 3 години | CV: ~25 хвилин
+                            data: [
+                                {x: 0, y: 30}, {x: 1, y: 30}, {x: 2, y: 30}, {x: 3, y: 30}, 
+                                {x: 3.1, y: 15}, {x: 3.25, y: 2}, {x: 3.4, y: 0.3}
+                            ],
+                            borderColor: '#ef4444', // Червоний
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.4,
+                            cubicInterpolationMode: 'monotone', // Робить спад плавним без "провалів" нижче нуля
+                            fill: false
+                        },
+                        {
+                            label: '3.60V (Баланс)',
+                            data: [
+                                {x: 0, y: 30}, {x: 1, y: 30}, {x: 2, y: 30}, {x: 2.5, y: 30}, 
+                                {x: 2.8, y: 15}, {x: 3.2, y: 5}, {x: 3.8, y: 0.3}
+                            ],
+                            borderColor: '#f59e0b', // Жовтий
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.4,
+                            cubicInterpolationMode: 'monotone',
+                            fill: false
+                        },
+                        {
+                            label: '3.50V (М\'який заряд)',
+                            data: [
+                                {x: 0, y: 30}, {x: 1, y: 30}, {x: 1.5, y: 30}, 
+                                {x: 2.0, y: 22}, {x: 3.5, y: 10}, {x: 5.0, y: 0.3}
+                            ],
+                            borderColor: '#10b981', // Зелений
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.4,
+                            cubicInterpolationMode: 'monotone',
+                            fill: false
+                        },
+                        {
+                            label: '3.40V (Повільне насичення)',
+                            // CC: 1 година | CV: 6 годин (дуже довгий спад)
+                            data: [
+                                {x: 0, y: 30}, {x: 1, y: 30}, 
+                                {x: 2.0, y: 22}, {x: 4.0, y: 10}, {x: 5.5, y: 3}, {x: 7.0, y: 0.3}
+                            ],
+                            borderColor: '#3b82f6', // Синій
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.4,
+                            cubicInterpolationMode: 'monotone',
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: { 
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                boxWidth: 8,
+                                font: { size: 11, family: 'system-ui, sans-serif' }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    // Конвертуємо десяткові години у години та хвилини для тултіпа
+                                    let hours = context[0].parsed.x;
+                                    let h = Math.floor(hours);
+                                    let m = Math.round((hours - h) * 60);
+                                    return `Час: ${h} год ${m > 0 ? m + ' хв' : ''}`.trim();
+                                },
+                                label: function(context) {
+                                    return ` ${context.dataset.label}: ${context.parsed.y} А`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear', // Використовуємо лінійну шкалу для точного позиціонування часу
+                            title: { display: true, text: 'Час заряду (години)', color: '#64748b', font: { size: 11 } },
+                            grid: { display: false },
+                            min: 0,
+                            max: 7.5,
+                            ticks: {
+                                stepSize: 1,
+                                callback: function(value) { return value + ' год'; }
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Струм заряду (Ампери)', color: '#64748b', font: { size: 11 } },
+                            max: 35, // Даємо трохи місця над 30А графіком
+                            grid: { color: '#f1f5f9' },
+                            ticks: { stepSize: 10 }
+                        }
+                    },
+                    elements: {
+                        point: {
+                            radius: 2,
+                            hoverRadius: 6
+                        }
+                    }
+                }
+            });
+        }
+
+        // Запуск функції
+        document.addEventListener('DOMContentLoaded', initChart);
+        // ==========================================
+    </script>
+</body>
+</html>
